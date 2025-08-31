@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader, RefreshCw, Trash2, MessageCircle } from "lucide-react";
+import { Send, Bot, User, Loader, RefreshCw, Trash2, MessageCircle } from "lucide-react";
 
 function App() {
   const [messages, setMessages] = useState([
@@ -7,7 +7,7 @@ function App() {
       id: 1,
       type: "bot",
       content:
-        "👋 Hello! I'm your AI assistant. I can help you with user database queries, financial questions, and general knowledge. How can I assist you today?",
+        "Hello! I'm your AI assistant. I can help you with user database queries, financial questions, and general knowledge. How can I assist you today?",
       timestamp: new Date(),
     },
   ]);
@@ -18,26 +18,26 @@ function App() {
 
   const API_BASE_URL = "http://localhost:3000";
 
-  useEffect(() => {
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
   }, [messages]);
 
-  const sendMessage = async (message) => {
+  const sendMessage = async ( message) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message }),
       });
-
-      console.log("API Response Status:", response);
-
       const data = await response.json();
-      return data.response || "Sorry, I couldn't process that request.";
+      return data.response || "Sorry, I couldn’t process that request.";
     } catch (error) {
-      console.error("API Error:", error);
       setIsConnected(false);
-      return `⚠️ Trouble connecting to the server. Please check API. ${error}`;
+      return "⚠️ Server not reachable. Please check API.";
     }
   };
 
@@ -53,21 +53,18 @@ function App() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    const currentMessage = inputMessage.trim();
     setInputMessage("");
     setIsLoading(true);
 
     try {
-      const botResponse = await sendMessage(currentMessage);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          type: "bot",
-          content: botResponse,
-          timestamp: new Date(),
-        },
-      ]);
+      const botResponse = await sendMessage(userMessage.content);
+      const botMessage = {
+        id: Date.now() + 1,
+        type: "bot",
+        content: botResponse,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, botMessage]);
       setIsConnected(true);
     } catch {
       setMessages((prev) => [
@@ -75,8 +72,7 @@ function App() {
         {
           id: Date.now() + 1,
           type: "bot",
-          content:
-            "❌ Sorry, I encountered an error while processing your request.",
+          content: "❌ Error while processing your request.",
           timestamp: new Date(),
         },
       ]);
@@ -90,67 +86,166 @@ function App() {
       {
         id: 1,
         type: "bot",
-        content: "✨ Chat cleared! How can I help you today?",
+        content: "Chat cleared! How can I help you today?",
         timestamp: new Date(),
       },
     ]);
   };
 
+  const retryConnection = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/health`);
+      if (response.ok) {
+        setIsConnected(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            type: "bot",
+            content: "✅ Connection restored!",
+            timestamp: new Date(),
+          },
+        ]);
+      }
+    } catch {
+      setIsConnected(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formatTime = (timestamp) =>
-    timestamp.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+  const quickActions = [
+    "Find user with PAN ABGPA5303H",
+    "What is SIP?",
+    "Calculate AUM for client 11181",
+    "Explain mutual funds",
+    "Get transaction history",
+  ];
 
   return (
-    <div className="d-flex justify-content-center align-items-center bg-primary" style={{ minHeight: "100vh" }}>
-      <div className="card shadow-lg" style={{ width: "600px", height: "80vh" }}>
-        
+    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+      <div className="card shadow-lg border-0 w-100" style={{ maxWidth: "600px", height: "80vh" }}>
         {/* Header */}
-        <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <div className="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center">
-            <MessageCircle className="me-2" />
+            <div className="bg-primary text-white p-2 rounded me-2">
+              <MessageCircle size={20} />
+            </div>
             <div>
               <h6 className="mb-0">AI Assistant</h6>
-              <small>{isConnected ? "Connected ✅" : "Disconnected ❌"}</small>
+              <small className="text-muted">
+                {isConnected ? "Connected" : "Disconnected"} •{" "}
+                <span
+                  className={`badge rounded-circle p-2 ${
+                    isConnected ? "bg-success" : "bg-danger"
+                  }`}
+                ></span>
+              </small>
             </div>
           </div>
           <div>
-            <button onClick={clearChat} className="btn btn-sm btn-light">
+            {!isConnected && (
+              <button
+                className="btn btn-outline-primary btn-sm me-2"
+                onClick={retryConnection}
+                disabled={isLoading}
+              >
+                <RefreshCw size={16} />
+              </button>
+            )}
+            <button className="btn btn-outline-secondary btn-sm" onClick={clearChat}>
               <Trash2 size={16} />
             </button>
           </div>
         </div>
 
-        {/* Chat Area */}
-        <div className="card-body overflow-auto">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`mb-3 d-flex ${msg.type === "user" ? "justify-content-end" : "justify-content-start"}`}>
-              <div className={`p-2 rounded ${msg.type === "user" ? "bg-primary text-white" : "bg-light"}`}>
-                <div>{msg.content}</div>
-                <small className="text-muted">{formatTime(msg.timestamp)}</small>
+        {/* Chat Body */}
+        <div className="card-body d-flex flex-column p-3" style={{ overflowY: "auto" }}>
+          <div className="flex-grow-1">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`d-flex mb-3 ${
+                  msg.type === "user" ? "justify-content-end" : "justify-content-start"
+                }`}
+              >
+                {msg.type === "bot" && (
+                  <div
+                    className="rounded-circle bg-light d-flex align-items-center justify-content-center me-2"
+                    style={{ width: "32px", height: "32px" }}
+                  >
+                    <Bot size={16} />
+                  </div>
+                )}
+                <div
+                  className={`p-2 rounded ${
+                    msg.type === "user" ? "bg-primary text-white" : "bg-light border"
+                  }`}
+                  style={{ maxWidth: "75%" }}
+                >
+                  <p className="mb-1">{msg.content}</p>
+                  <small className="text-muted">{formatTime(msg.timestamp)}</small>
+                </div>
+                {msg.type === "user" && (
+                  <div
+                    className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center ms-2"
+                    style={{ width: "32px", height: "32px" }}
+                  >
+                    <User size={16} />
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            ))}
 
-          {isLoading && (
-            <div className="text-muted">
-              <Loader className="me-2 animate-spin" size={16} />
-              Thinking...
-            </div>
-          )}
-          <div ref={messagesEndRef}></div>
+            {isLoading && (
+              <div className="d-flex mb-3">
+                <div
+                  className="rounded-circle bg-light d-flex align-items-center justify-content-center me-2"
+                  style={{ width: "32px", height: "32px" }}
+                >
+                  <Bot size={16} />
+                </div>
+                <div className="p-2 bg-light border rounded">
+                  <div className="d-flex align-items-center">
+                    <div className="spinner-border spinner-border-sm text-secondary me-2"></div>
+                    <span>Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef}></div>
+          </div>
         </div>
 
+        {/* Quick Actions */}
+        {messages.length <= 1 && (
+          <div className="px-3 pb-2">
+            <p className="small text-muted">Try these quick actions:</p>
+            {quickActions.map((action, i) => (
+              <button
+                key={i}
+                className="btn btn-sm btn-outline-primary me-2 mb-2"
+                onClick={() => setInputMessage(action)}
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Input */}
-        <div className="card-footer">
-          <form onSubmit={handleSubmit} className="d-flex">
+        <div className="card-footer bg-white border-top">
+          <form className="d-flex" onSubmit={handleSubmit}>
             <input
               type="text"
               className="form-control me-2"
+              placeholder="Type your message..."
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Type your message..."
               disabled={isLoading || !isConnected}
             />
             <button
@@ -158,9 +253,18 @@ function App() {
               type="submit"
               disabled={isLoading || !inputMessage.trim() || !isConnected}
             >
-              {isLoading ? <Loader className="animate-spin" size={18} /> : <Send size={18} />}
+              {isLoading ? (
+                <div className="spinner-border spinner-border-sm"></div>
+              ) : (
+                <Send size={18} />
+              )}
             </button>
           </form>
+          {!isConnected && (
+            <small className="text-danger mt-2 d-block">
+              ⚠️ Not connected to server. Please check your API.
+            </small>
+          )}
         </div>
       </div>
     </div>
